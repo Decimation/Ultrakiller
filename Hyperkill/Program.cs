@@ -100,7 +100,11 @@ namespace Hyperkill
 
 		private static GameObject Load;
 	}
-
+	/*
+	 * .\smi.exe inject -p ULTRAKILL -a .\bin\Release\Hyperkill.dll -n Hyperkill -c Loader -m Init
+	 *
+	 * .\smi.exe eject -p ULTRAKILL -a <addr> -n Hyperkill -c Loader -m Unload
+	 */
 	class Program
 	{
 		static void Main(string[] args) { }

@@ -15,27 +15,24 @@ namespace Ultrakiller
 
 			var p = Process.GetProcessesByName("ULTRAKILL");
 
-			foreach (var process in p)
-			{
+			foreach (var process in p) {
 				Console.WriteLine(process.ProcessName);
 			}
 
-			var ultrakill = p[0];
+			var ultrakill  = p[0];
 			var moduleName = ultrakill.MainModule;
 
-			foreach (ProcessModule module in ultrakill.Modules)
-			{
+			foreach (ProcessModule module in ultrakill.Modules) {
 				Console.WriteLine($"{module.ModuleName}");
 
-				if (module.ModuleName.Contains("UnityPlayer"))
-				{
+				if (module.ModuleName.Contains("UnityPlayer")) {
 					moduleName = module;
 					break;
 				}
 			}
 
 
-		SystemInfo systemInformation = default;
+			SystemInfo systemInformation = default;
 			Native.GetSystemInfo(ref systemInformation);
 
 			MemoryBasicInformation m = default;
@@ -44,30 +41,31 @@ namespace Ultrakiller
 
 			Console.WriteLine(systemInformation.lpMaximumApplicationAddress);
 
-			while (lpMem < systemInformation.lpMaximumApplicationAddress.ToInt64())
-			{
+			while (lpMem < systemInformation.lpMaximumApplicationAddress.ToInt64()) {
 
 
-				int result = Native.VirtualQueryEx(ultrakill.Handle, (IntPtr)lpMem, ref m,
-					(uint)Marshal.SizeOf(typeof(MemoryBasicInformation)));
+				int result = Native.VirtualQueryEx(ultrakill.Handle, (IntPtr) lpMem, ref m,
+					(uint) Marshal.SizeOf(typeof(MemoryBasicInformation)));
 
-				if (m.State == AllocationType.Commit)
-				{
+				if (m.State == AllocationType.Commit) {
 					//Console.WriteLine("{0:X}-{1:X} : {2} bytes result={3} | {4} {5}", m.BaseAddress,
 					//	(ulong)m.BaseAddress + (ulong)m.RegionSize - 1, m.RegionSize, result, m.Protect, m.AllocationProtect);
 
 					var rg1 = new byte[m.RegionSize.ToInt64()];
-					var ok = Native.ReadProcessMemory(ultrakill.Handle, m.BaseAddress, rg1, m.RegionSize, out var result1);
 
-					Debug.WriteLine($"{m.BaseAddress:X} read {ok} {result1.ToInt64()} {m.AllocationProtect} {m.Protect} {m.Protect} {m.State}");
+					var ok = Native.ReadProcessMemory(ultrakill.Handle, m.BaseAddress, rg1, m.RegionSize,
+						out var result1);
+
+					Debug.WriteLine(
+						$"{m.BaseAddress:X} read {ok} {result1.ToInt64()} {m.AllocationProtect} {m.Protect} {m.Protect} {m.State}");
 
 
-					var ss = new SigScanner(m.BaseAddress, (ulong)m.RegionSize, rg1);
+					var ss = new SigScanner(m.BaseAddress, (ulong) m.RegionSize, rg1);
 
 					//var addr = ss.FindSignature("1F 18 0A 02 7B 51 0C 00 04 22 00 00 40 3F 22 9A 99 59 3F 28 E2 00 00 0A 6F E3 00 00 0A 2B 1C");
 					var addr = ss.FindSignature("02 16 7D 62 0C 00 04 1F 0C");
-					if (!addr.IsNull)
-					{
+
+					if (!addr.IsNull) {
 						Console.WriteLine($"!!! {addr}");
 					}
 
@@ -75,8 +73,8 @@ namespace Ultrakiller
 
 					var line = addr + 0x35;
 					//1F
-					
-					Mem.WriteProcessMemory(ultrakill, line+1, new byte[] { 127});
+
+					Mem.WriteProcessMemory(ultrakill, line + 1, new byte[] {127});
 
 					//0x76
 					//for (long i = addr.ToInt64(); i < (addr.ToInt64() + 0x76) - 4; i++)
@@ -96,17 +94,13 @@ namespace Ultrakiller
 				}
 
 
-
-
-
-
 				//var sig  = new SigScanner(m.BaseAddress, m.RegionSize);
 				//var addr = sig.FindSignature("02 16 7D 62 0C 00 04 1F 0C");
 
-				if (lpMem == (long)m.BaseAddress + (long)m.RegionSize)
+				if (lpMem == (long) m.BaseAddress + (long) m.RegionSize)
 					break;
 
-				lpMem = (long)m.BaseAddress + (long)m.RegionSize;
+				lpMem = (long) m.BaseAddress + (long) m.RegionSize;
 
 			}
 
