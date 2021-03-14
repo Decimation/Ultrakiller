@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Novus">
+      <HintPath>..\..\Novus\Novus\bin\Release\net5.0\Novus.dll</HintPath>
+    </Reference>
+    <Reference Include="SimpleCore">
+      <HintPath>..\..\..\RiderProjects\SimpleCore\SimpleCore\bin\Release\net5.0\SimpleCore.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
