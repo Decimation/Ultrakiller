@@ -3,34 +3,30 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Novus.Memory;
 using Novus.Runtime;
+using Novus.Runtime.Meta.Jit;
 using Novus.Win32;
 using Novus.Win32.Structures;
+using SimpleCore.Cli;
 using SimpleCore.Utilities;
+
+#nullable enable
 
 namespace Ultrakiller
 {
-	class Program
+	public static class Program
 	{
-		static void Main(string[] args)
+		private static void patch()
 		{
+			//List<ProcessModule> modules =
+			//	ultrakill.Modules.Cast<ProcessModule>().OrderBy(module => module.BaseAddress).ToList();
 
-			var p = Process.GetProcessesByName("ULTRAKILL");
-
-			foreach (var process in p) {
-				Console.WriteLine(process.ProcessName);
-			}
-
-			var ultrakill = p[0];
-
-			List<ProcessModule> modules =
-				ultrakill.Modules.Cast<ProcessModule>().OrderBy(module => module.BaseAddress).ToList();
-
-			foreach (var module in modules) {
-				Console.WriteLine(
-					$"{module.ModuleName} {module.BaseAddress:X} {module.EntryPointAddress:X} {module.ModuleMemorySize}");
-			}
+			//foreach (var module in modules) {
+			//	Console.WriteLine(
+			//		$"{module.ModuleName} {module.BaseAddress:X} {module.EntryPointAddress:X} {module.ModuleMemorySize}");
+			//}
 
 			SystemInfo systemInformation = default;
 			Native.GetSystemInfo(ref systemInformation);
@@ -39,7 +35,6 @@ namespace Ultrakiller
 
 			var lpMem = 0L;
 
-			Console.WriteLine(systemInformation.lpMaximumApplicationAddress);
 
 			var sw = Stopwatch.StartNew();
 
@@ -67,10 +62,12 @@ namespace Ultrakiller
 
 					//0x48170
 					//seg000:48170
+
+					//"02 16 7D 62 0C 00 04 1F 0C"
 					var addr = ss.FindSignature("02 16 7D 62 0C 00 04 1F 0C");
 
 					if (!addr.IsNull) {
-						Console.WriteLine($"!!! {addr}");
+						Console.WriteLine($">>> {addr}");
 
 						//var line = addr + 0x54;
 
@@ -83,19 +80,17 @@ namespace Ultrakiller
 						Console.WriteLine($"{ofs:X}");
 
 						var body = rg1.Skip(ofs).Take(0x768).ToList();
-						var ops=InspectIL.GetInstructions(body.ToArray());
-						Console.WriteLine(ops.Length);
-						foreach (var op in ops) {
-							Console.WriteLine(op);
-						}
+
+						//var ops  = InspectIL.GetInstructions(body.ToArray());
+
 						//22 00 00 C0 3F
 						body.ReplaceAllSequences(new List<byte>() {0x22, 00, 00, 0xC0, 0x3F},
 							new List<byte>() {0x22, 00, 00, 0x20, 0x41});
 
 
-						body[0x7  + 1] = 50;
 						body[0x54 + 1] = 100;
-						body[0x35 + 1] = 127;
+						body[0x73 + 1] = 127;
+						body[0x35 + 1] = 50;
 
 						//Console.WriteLine($"{body[^1]:X}");
 
@@ -110,7 +105,7 @@ namespace Ultrakiller
 
 						//0x488d7
 
-						Console.WriteLine("written");
+						Console.WriteLine("Patched");
 					}
 
 
@@ -125,6 +120,37 @@ namespace Ultrakiller
 
 			sw.Stop();
 			Console.WriteLine($"{sw.Elapsed.Seconds} sec");
+		}
+
+		private static Process? ultrakill;
+
+		private static void Main(string[] args)
+		{
+
+			Console.WriteLine("waiting");
+			do {
+				var p = Process.GetProcessesByName("ULTRAKILL");
+
+
+				foreach (var process in p) {
+					Console.WriteLine(process.ProcessName);
+				}
+
+				ultrakill = p.FirstOrDefault();
+				
+				Thread.Sleep(TimeSpan.FromSeconds(1));
+
+			} while (ultrakill is null);
+
+
+			MENU:
+			var k = Console.ReadKey();
+			
+
+			if (k.Key == ConsoleKey.Enter) {
+				patch();
+				goto MENU;
+			}
 		}
 	}
 }
