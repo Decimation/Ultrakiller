@@ -47,6 +47,18 @@ namespace Hyperkill
 				BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
 			
 			RuntimeHelpers.PrepareMethod(fn.MethodHandle);
+
+			var il=fn.GetMethodBody().GetILAsByteArray();
+
+
+			// for (int i = 0; i < il.Length; i++) {
+			// 	if (il[i]==OpCodes.Ldc_R4.Value) {
+			// 		il[3] = 0xa0;
+			// 		il[4] = 0x40;
+			// 	}
+			// }
+			//
+			// InjectionHelper.UpdateILCodes(fn,il);
 		}
 
 		public void Update()
@@ -75,12 +87,15 @@ namespace Hyperkill
 			//var cam = Camera.main;
 			var target =
 				cam.transform.position + cam.transform.forward; //Calculate a point facing straight away from us
+			
 			var w2s = cam.WorldToScreenPoint(target);           //Translate position to screen
 
 			if (w2s.z < 0) //Behind screen?
 				return;    //Skip
-			ZatsRenderer.DrawBox(new Vector2(w2s.x, w2s.y), new Vector2(10, 10), Color.green);
-			//ZatsRenderer.DrawString(new Vector2(w2s.x, w2s.y), "BUTT SEX"); //Draw
+			
+			ZatsRenderer.DrawBox(new Vector2(w2s.x, w2s.y), new Vector2(1, 1), Color.green);
+			
+				//ZatsRenderer.DrawString(new Vector2(w2s.x, w2s.y), "BUTT SEX"); //Draw
 		}
 	}
 

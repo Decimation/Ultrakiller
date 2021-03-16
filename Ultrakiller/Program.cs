@@ -1,9 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Novus.Memory;
+using Novus.Runtime;
 using Novus.Win32;
 using Novus.Win32.Structures;
+using SimpleCore.Utilities;
 
 namespace Ultrakiller
 {
@@ -11,7 +15,6 @@ namespace Ultrakiller
 	{
 		static void Main(string[] args)
 		{
-			//\x02\x16\x7D\x62\x0C\x00\x04\x1F\x0C
 
 			var p = Process.GetProcessesByName("ULTRAKILL");
 
@@ -19,18 +22,15 @@ namespace Ultrakiller
 				Console.WriteLine(process.ProcessName);
 			}
 
-			var ultrakill  = p[0];
-			var moduleName = ultrakill.MainModule;
+			var ultrakill = p[0];
 
-			foreach (ProcessModule module in ultrakill.Modules) {
-				Console.WriteLine($"{module.ModuleName}");
+			List<ProcessModule> modules =
+				ultrakill.Modules.Cast<ProcessModule>().OrderBy(module => module.BaseAddress).ToList();
 
-				if (module.ModuleName.Contains("UnityPlayer")) {
-					moduleName = module;
-					break;
-				}
+			foreach (var module in modules) {
+				Console.WriteLine(
+					$"{module.ModuleName} {module.BaseAddress:X} {module.EntryPointAddress:X} {module.ModuleMemorySize}");
 			}
-
 
 			SystemInfo systemInformation = default;
 			Native.GetSystemInfo(ref systemInformation);
@@ -41,15 +41,15 @@ namespace Ultrakiller
 
 			Console.WriteLine(systemInformation.lpMaximumApplicationAddress);
 
-			while (lpMem < systemInformation.lpMaximumApplicationAddress.ToInt64()) {
+			var sw = Stopwatch.StartNew();
 
+			while (lpMem < systemInformation.lpMaximumApplicationAddress.ToInt64()) {
 
 				int result = Native.VirtualQueryEx(ultrakill.Handle, (IntPtr) lpMem, ref m,
 					(uint) Marshal.SizeOf(typeof(MemoryBasicInformation)));
 
-				if (m.State == AllocationType.Commit) {
-					//Console.WriteLine("{0:X}-{1:X} : {2} bytes result={3} | {4} {5}", m.BaseAddress,
-					//	(ulong)m.BaseAddress + (ulong)m.RegionSize - 1, m.RegionSize, result, m.Protect, m.AllocationProtect);
+				if (m.State == AllocationType.Commit &&
+				    (m.Type == TypeEnum.MEM_MAPPED || m.Type == TypeEnum.MEM_PRIVATE)) {
 
 					var rg1 = new byte[m.RegionSize.ToInt64()];
 
@@ -62,40 +62,59 @@ namespace Ultrakiller
 
 					var ss = new SigScanner(m.BaseAddress, (ulong) m.RegionSize, rg1);
 
+
 					//var addr = ss.FindSignature("1F 18 0A 02 7B 51 0C 00 04 22 00 00 40 3F 22 9A 99 59 3F 28 E2 00 00 0A 6F E3 00 00 0A 2B 1C");
+
+					//0x48170
+					//seg000:48170
 					var addr = ss.FindSignature("02 16 7D 62 0C 00 04 1F 0C");
 
 					if (!addr.IsNull) {
 						Console.WriteLine($"!!! {addr}");
+
+						//var line = addr + 0x54;
+
+						//481a5
+
+
+						var line = addr + 0x35;
+						var ofs  = (addr - m.BaseAddress).ToInt32();
+
+						Console.WriteLine($"{ofs:X}");
+
+						var body = rg1.Skip(ofs).Take(0x768).ToList();
+						var ops=InspectIL.GetInstructions(body.ToArray());
+						Console.WriteLine(ops.Length);
+						foreach (var op in ops) {
+							Console.WriteLine(op);
+						}
+						//22 00 00 C0 3F
+						body.ReplaceAllSequences(new List<byte>() {0x22, 00, 00, 0xC0, 0x3F},
+							new List<byte>() {0x22, 00, 00, 0x20, 0x41});
+
+
+						body[0x7  + 1] = 50;
+						body[0x54 + 1] = 100;
+						body[0x35 + 1] = 127;
+
+						//Console.WriteLine($"{body[^1]:X}");
+
+						//Mem.WriteProcessMemory(ultrakill, line + 1, new byte[] {127});
+
+						Mem.WriteProcessMemory(ultrakill, addr, body.ToArray());
+
+						//0x48511
+						//var line2 = addr + 0x70;
+						//3a1
+						//(line2+1).WriteAll(BitConverter.GetBytes(3f));
+
+						//0x488d7
+
+						Console.WriteLine("written");
 					}
 
-					//var line = addr + 0x54;
 
-					var line = addr + 0x35;
-					//1F
-
-					Mem.WriteProcessMemory(ultrakill, line + 1, new byte[] {127});
-
-					//0x76
-					//for (long i = addr.ToInt64(); i < (addr.ToInt64() + 0x76) - 4; i++)
-					//{
-					//	// if (rg1[i]==0x22&&rg1.Skip(i).Take(4).SequenceEqual(new byte[] {  0x00, 0x00, 0x00, 0x40 })) {
-					//	// 	Console.WriteLine(i);
-					//	// 	Mem.WriteProcessMemory(ultrakill, m.BaseAddress+i, new byte[] { 0x22,0x00, 0x00, 0x00, 0x00 });
-					//	//
-					//	// }
-					//	//if (rg1[i] == 0x22 && rg1[i+4]==0x40)
-					//	//{
-					//	//	Console.WriteLine(i);
-					//	//	Mem.WriteProcessMemory(ultrakill, (Pointer<byte>) (m.BaseAddress.ToInt64() + i +4), new byte[] {0x00 });
-
-					//	//}
-					//}
 				}
-
-
-				//var sig  = new SigScanner(m.BaseAddress, m.RegionSize);
-				//var addr = sig.FindSignature("02 16 7D 62 0C 00 04 1F 0C");
 
 				if (lpMem == (long) m.BaseAddress + (long) m.RegionSize)
 					break;
@@ -104,15 +123,8 @@ namespace Ultrakiller
 
 			}
 
-
-			// Console.WriteLine(moduleName.ModuleName+$" {moduleName.BaseAddress:F} ");
-			//
-			// var sig = new SigScanner(ultrakill,moduleName);
-			//
-			// //1F 18 0A 02 7B 51 0C 00 04 22 00 00 40 3F 22 9A 99 59 3F 28 E2 00 00 0A 6F E3 00 00 0A 2B 1C
-			// var addr = sig.FindSignature("02 16 7D 62 0C 00 04 1F 0C");
-			//
-			// Console.WriteLine(addr);
+			sw.Stop();
+			Console.WriteLine($"{sw.Elapsed.Seconds} sec");
 		}
 	}
 }
